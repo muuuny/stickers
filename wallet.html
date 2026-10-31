@@ -38,6 +38,8 @@
   .item .a { font-weight: 600; }
   .plus { color: #7c8f62; }
   .minus { color: #bd6f59; }
+  .right { display: flex; align-items: center; }
+  .del { margin-left: 10px; width: 26px; height: 26px; border-radius: 50%; border: none; background: #f0e6da; color: #b08a6f; font-size: 15px; line-height: 1; cursor: pointer; }
   .empty { text-align: center; color: #b5ac9d; padding: 20px 0; font-size: 13px; }
 </style>
 </head>
@@ -129,15 +131,25 @@ function addSpend(){
   save();
 }
 
+function delLog(i){
+  var l = data.logs[i];
+  if (!l) return;
+  if (!confirm('删掉这一笔「' + l.n + '」吗？')) return;
+  if (l.type === 'in') { data.bal -= l.a; data.earn -= l.a; }
+  else { data.bal += l.a; data.spend -= l.a; }
+  data.logs.splice(i, 1);
+  save();
+}
+
 function render(){
   document.getElementById('bal').textContent = data.bal.toFixed(2);
   document.getElementById('v-earn').textContent = data.earn.toFixed(2);
   document.getElementById('v-spend').textContent = data.spend.toFixed(2);
   var html = '';
-  data.logs.forEach(function(l){
+  data.logs.forEach(function(l, i){
     var sign = l.type === 'in' ? '+' : '-';
     var cls = l.type === 'in' ? 'plus' : 'minus';
-    html += '<div class="item"><div><div class="n">'+esc(l.n)+'</div><div class="t">'+esc(l.t)+'</div></div><span class="a '+cls+'">'+sign+l.a.toFixed(2)+'</span></div>';
+    html += '<div class="item"><div><div class="n">'+esc(l.n)+'</div><div class="t">'+esc(l.t)+'</div></div><div class="right"><span class="a '+cls+'">'+sign+l.a.toFixed(2)+'</span><button class="del" onclick="delLog('+i+')">×</button></div></div>';
   });
   document.getElementById('list').innerHTML = html || '<div class="empty">还没有流水，先记第一笔吧</div>';
 }
