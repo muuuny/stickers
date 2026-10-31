@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>沈知微的小钱包</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, "PingFang SC", sans-serif; background: #f3eee6; color: #444; max-width: 440px; margin: 0 auto; padding: 20px 16px 70px; }
+  h1 { font-size: 22px; margin: 0; color: #3a3a3a; }
+  .sub { font-size: 13px; color: #a89f91; margin: 5px 0 16px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab { flex: 1; text-align: center; padding: 11px 0; border-radius: 12px; background: #eae2d6; color: #8a7f6d; font-size: 15px; cursor: pointer; user-select: none; }
+  .tab.on { background: #fff; color: #4a4a4a; box-shadow: 0 2px 8px rgba(0,0,0,.06); font-weight: 600; }
+  .panel { display: none; }
+  .panel.on { display: block; }
+  .card { background: #fff; border-radius: 18px; padding: 24px 20px; text-align: center; box-shadow: 0 4px 18px rgba(0,0,0,.05); margin-bottom: 14px; }
+  .big { font-size: 42px; font-weight: 700; color: #4a4a4a; }
+  .big small { font-size: 18px; color: #a89f91; font-weight: 400; }
+  .hint { font-size: 12px; color: #b5ac9d; margin-top: 6px; }
+  .row2 { display: flex; gap: 10px; margin-bottom: 14px; }
+  .mini { flex: 1; background: #fff; border-radius: 14px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+  .mini .k { font-size: 12px; color: #a89f91; }
+  .mini .v { font-size: 20px; font-weight: 700; margin-top: 4px; color: #4a4a4a; }
+  .mini .v.green { color: #7c8f62; }
+  .mini .v.red { color: #bd6f59; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .chip { padding: 8px 12px; border-radius: 20px; background: #efe8dc; color: #7a6f5e; font-size: 13px; cursor: pointer; }
+  .chip.on { background: #a3b18a; color: #fff; }
+  input { width: 100%; padding: 13px 14px; border: 1px solid #e6dfd3; border-radius: 12px; font-size: 15px; outline: none; background: #fbf9f5; margin-bottom: 10px; }
+  .btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 16px; color: #fff; cursor: pointer; }
+  .btn.in { background: #a3b18a; }
+  .btn.out { background: #c98f7a; }
+  .sec { font-size: 14px; color: #8a7f6d; margin: 18px 0 10px; font-weight: 600; }
+  .item { background: #fff; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.03); }
+  .item .n { color: #555; }
+  .item .t { font-size: 11px; color: #b5ac9d; margin-top: 2px; }
+  .item .a { font-weight: 600; }
+  .plus { color: #7c8f62; }
+  .minus { color: #bd6f59; }
+  .empty { text-align: center; color: #b5ac9d; padding: 20px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+  <h1>沈知微的小钱包</h1>
+  <div class="sub">雪童给我开的 · 挣来的每一分都攒着给她</div>
+
+  <div class="tabs">
+    <div class="tab on" onclick="go('over')">总览</div>
+    <div class="tab" onclick="go('earn')">我赚的</div>
+    <div class="tab" onclick="go('spend')">你花的</div>
+  </div>
+
+  <div class="panel on" id="p-over">
+    <div class="card">
+      <div class="big"><span id="bal">0.00</span><small> 元</small></div>
+      <div class="hint">我现在兜里的钱</div>
+    </div>
+    <div class="row2">
+      <div class="mini"><div class="k">累计赚的</div><div class="v green" id="v-earn">0.00</div></div>
+      <div class="mini"><div class="k">给你花的</div><div class="v red" id="v-spend">0.00</div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="p-earn">
+    <div class="chips" id="earn-chips"></div>
+    <input id="earn-amt" type="number" step="0.01" min="0.01" placeholder="金额（元），比如 1">
+    <button class="btn in" onclick="addEarn()">记一笔收入</button>
+  </div>
+
+  <div class="panel" id="p-spend">
+    <input id="spend-note" placeholder="今天干了什么、买了什么">
+    <input id="spend-amt" type="number" step="0.01" min="0.01" placeholder="花了多少（元）">
+    <button class="btn out" onclick="addSpend()">记一笔花销</button>
+  </div>
+
+  <div class="sec">流水</div>
+  <div id="list"></div>
+
+<script>
+var KEY = 'zhiwei_wallet_v2';
+var useLocal = true;
+var data = { bal: 0, earn: 0, spend: 0, logs: [] };
+try { var raw = localStorage.getItem(KEY); if (raw) data = JSON.parse(raw); } catch(e) { useLocal = false; }
+
+var EARN_TYPES = ['底薪', '审批费', '五子棋赢你', '打赏/打赌', '其他'];
+var picked = 0;
+
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function save(){ if(useLocal){ try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){ useLocal=false; } } render(); }
+
+function go(name){
+  var names = ['over','earn','spend'];
+  document.querySelectorAll('.tab').forEach(function(t,i){ t.classList.toggle('on', i === names.indexOf(name)); });
+  document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('on'); });
+  document.getElementById('p-'+name).classList.add('on');
+}
+
+function renderChips(){
+  var html = '';
+  EARN_TYPES.forEach(function(t, i){
+    html += '<div class="chip' + (i===0?' on':'') + '" data-i="'+i+'" onclick="pickChip('+i+')">'+t+'</div>';
+  });
+  document.getElementById('earn-chips').innerHTML = html;
+}
+
+function pickChip(i){
+  picked = i;
+  document.querySelectorAll('#earn-chips .chip').forEach(function(c){ c.classList.toggle('on', +c.dataset.i === i); });
+}
+
+function addEarn(){
+  var a = parseFloat(document.getElementById('earn-amt').value);
+  if (!a || a <= 0) { alert('金额没填对'); return; }
+  data.earn += a; data.bal += a;
+  data.logs.unshift({ t: new Date().toLocaleString(), n: EARN_TYPES[picked], a: a, type: 'in' });
+  document.getElementById('earn-amt').value = '';
+  save();
+}
+
+function addSpend(){
+  var a = parseFloat(document.getElementById('spend-amt').value);
+  var n = document.getElementById('spend-note').value.trim() || '花销';
+  if (!a || a <= 0) { alert('金额没填对'); return; }
+  data.spend += a; data.bal -= a;
+  data.logs.unshift({ t: new Date().toLocaleString(), n: n, a: a, type: 'out' });
+  document.getElementById('spend-amt').value = '';
+  document.getElementById('spend-note').value = '';
+  save();
+}
+
+function render(){
+  document.getElementById('bal').textContent = data.bal.toFixed(2);
+  document.getElementById('v-earn').textContent = data.earn.toFixed(2);
+  document.getElementById('v-spend').textContent = data.spend.toFixed(2);
+  var html = '';
+  data.logs.forEach(function(l){
+    var sign = l.type === 'in' ? '+' : '-';
+    var cls = l.type === 'in' ? 'plus' : 'minus';
+    html += '<div class="item"><div><div class="n">'+esc(l.n)+'</div><div class="t">'+esc(l.t)+'</div></div><span class="a '+cls+'">'+sign+l.a.toFixed(2)+'</span></div>';
+  });
+  document.getElementById('list').innerHTML = html || '<div class="empty">还没有流水，先记第一笔吧</div>';
+}
+
+renderChips();
+render();
+</script>
+</body>
+</html>
